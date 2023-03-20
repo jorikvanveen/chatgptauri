@@ -1,0 +1,26 @@
+:root {
+    --light-red: #F14E52;
+    --dark-red: #9B222B;
+    --bg: #1C2638;
+    --dark-blue: #23495D;
+    --less-dark-blue : #39707A;
+    --teal: #95E0CC;
+    --fg: #DAF2E9;
+}
+
+html, body {
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    margin: 0;
+
+    background: var(--bg);
+    color: var(--fg);
+}
+
+#app {
+    width: 100%;
+    height: 100%;
+}
+
