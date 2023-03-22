@@ -41,7 +41,7 @@
             messages.push(new ChatMessage("assistant", resp));
             console.log("Success")
         } catch (e) {
-            messages.push(new ChatMessage("error", e.toString));
+            messages.push(new ChatMessage("error", e.toString()));
             console.error(e);
         }
 
