@@ -22,6 +22,10 @@ impl ChatState {
     pub fn push_message(&self, message: ChatCompletionMessage) {
         self.0.lock().unwrap().push(message)
     }
+
+    pub fn clear(&self) {
+        *self.0.lock().unwrap() = vec![]
+    }
 }
 
 #[tauri::command]
@@ -58,9 +62,15 @@ async fn prompt(prompt: &str, messages: tauri::State<'_, ChatState>) -> Result<S
     Ok(response)
 }
 
+#[tauri::command]
+fn clear_messages(messages: tauri::State<'_, ChatState>) {
+    println!("Clearing message state");
+    messages.clear();
+}
+
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![greet, prompt])
+        .invoke_handler(tauri::generate_handler![greet, prompt, clear_messages])
         .manage(ChatState::new())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
