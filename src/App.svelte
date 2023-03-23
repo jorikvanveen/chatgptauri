@@ -57,7 +57,7 @@
             {#if message.role == "user"}
                 <p class="msg user"><MultilineParagraph text={message.message} /></p>
             {:else if message.role == "assistant"}
-                <p class="msg assistant">{@html marked.parse(DOMpurify.sanitize(message.message))}</p>
+                <p class="msg assistant">{@html marked.parse(message.message)}</p>
             {:else}
                 <p class="msg error"><MultilineParagraph text={message.message} /></p>
             {/if}
@@ -74,7 +74,6 @@
         height: 100%;
         box-sizing: border-box; 
         padding: 2rem;
-
         display: flex;
         flex-direction: column;
     }
