@@ -1,18 +1,11 @@
 <script lang="ts">
     import { invoke } from "@tauri-apps/api/tauri";
-    import { tick } from "svelte";
+    import { getContext, tick } from "svelte";
     import MultilineParagraph from "./MultilineParagraph.svelte";
     import { marked } from "marked";
+    import { ChatMessage } from "./chat";
+    import type { Writable } from "svelte/store";
 
-    class ChatMessage {
-        role: "user" | "assistant" | "error"
-        message: string
-
-        constructor(role: "user" | "assistant" | "error", message: string) {
-            this.role = role
-            this.message = message
-        }
-    }
 
     interface PromptResponse {
         cost: number;
@@ -20,7 +13,7 @@
     }
 
     let promptInput = "";
-    let messages: ChatMessage[] = [];
+    let messages: Writable<ChatMessage[]> = getContext("messages");
 
     function promptKeyDown(e: KeyboardEvent) {
         if (e.key == "Enter" && !e.shiftKey) {
@@ -33,7 +26,7 @@
     async function submitPrompt(prompt: string) {
         let chatlog = document.querySelector(".chatlog");
 
-        messages.push(new ChatMessage("user", prompt))
+        $messages.push(new ChatMessage("user", prompt))
         messages = messages
         await tick()
 
@@ -43,10 +36,10 @@
             console.log("Requesting")
             let resp = await invoke("prompt_gpt4", { prompt }) as PromptResponse;
             console.log(resp.cost)
-            messages.push(new ChatMessage("assistant", resp.content));
+            $messages.push(new ChatMessage("assistant", resp.content));
             console.log("Success")
         } catch (e) {
-            messages.push(new ChatMessage("error", e.toString()));
+            $messages.push(new ChatMessage("error", e.toString()));
             console.error(e);
         }
 
@@ -58,7 +51,7 @@
 
 <main class="container">
     <div class="chatlog">
-        {#each messages as message}
+        {#each $messages as message}
             {#if message.role == "user"}
                 <p class="msg user"><MultilineParagraph text={message.message} /></p>
             {:else if message.role == "assistant"}

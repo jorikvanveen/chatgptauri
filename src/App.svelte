@@ -6,9 +6,14 @@
     import { writable } from "svelte/store";
     import { setContext } from "svelte";
     import Page from "./page"
+    import type { ChatMessage } from "./chat";
+    import type { Writable } from "svelte/store";
 
     let page = writable(Page.Main);
     setContext("page", page);
+
+    let messages: Writable<ChatMessage[]> = writable([]);
+    setContext("messages", messages);
 
     function toSettings() {
         $page = Page.Settings; 

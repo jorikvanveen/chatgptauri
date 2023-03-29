@@ -32,13 +32,13 @@ async fn prompt(prompt: &str, messages: tauri::State<'_, ChatState>) -> Result<P
         role: ChatCompletionMessageRole::User,
         content: prompt.into(),
         name: None
-    });
+    }).await;
     println!("Pushed message: {}", prompt);
 
     println!("Requesting completion: {}", prompt);
     let completion = ChatCompletionBuilder::default()
         .model("gpt-3.5-turbo")
-        .messages(messages.inner().get())
+        .messages(messages.inner().get().await)
         .create()
         .await;
     println!("Got completion: {}", prompt);
@@ -58,7 +58,7 @@ async fn prompt(prompt: &str, messages: tauri::State<'_, ChatState>) -> Result<P
 
     println!("Pushing completion: {}", prompt);
 
-    messages.push_message(completion_message.clone());
+    messages.push_message(completion_message.clone()).await;
     Ok(PromptResponse {
         cost, content: response
     })
@@ -71,6 +71,8 @@ async fn prompt_gpt4(prompt: &str, messages: tauri::State<'_, Arc<Mutex<Vec<gpt4
 
     let api_key = std::env::var("OPENAI_KEY").expect("Please provide an OPENAI_KEY environment variable");
     let response = gpt4::Request::new(messages.to_vec()).do_request(&api_key).await;
+
+    println!("{:#?}", messages);
     let response = match response {
         Ok(response) => response,
         Err(e) => {
@@ -89,9 +91,11 @@ async fn prompt_gpt4(prompt: &str, messages: tauri::State<'_, Arc<Mutex<Vec<gpt4
 }
 
 #[tauri::command]
-fn clear_messages(messages: tauri::State<'_, ChatState>) {
+async fn clear_messages(messages3: tauri::State<'_, ChatState>, messages4: tauri::State<'_, Arc<Mutex<Vec<gpt4::Message>>>>) -> Result<(), ()> {
     println!("Clearing message state");
-    messages.clear();
+    messages3.clear().await;
+    *messages4.lock().await = vec![];
+    Ok(())
 }
 
 fn main() {
