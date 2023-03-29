@@ -7,7 +7,7 @@
     let id = Math.floor(Math.random() * 0xffffffff).toString()
 </script>
 
-<label for={id}>{label}</label><br/>
+<label for={id}>{label}</label>
 {#if password}
     <input {id} type="password" bind:value={value} />
 {:else}

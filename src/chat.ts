@@ -1,9 +1,5 @@
-export class ChatMessage {
+export interface ChatMessage {
     role: "user" | "assistant" | "error"
-    message: string
-
-    constructor(role: "user" | "assistant" | "error", message: string) {
-        this.role = role
-        this.message = message
-    }
+    message: string,
+    cost: number | null    
 }

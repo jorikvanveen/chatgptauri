@@ -31,7 +31,7 @@ impl Message {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Request {
-    pub model: &'static str,
+    pub model: String,
     pub messages: Vec<Message>
 }
 
@@ -68,9 +68,9 @@ pub struct OpenAIAPIErrorInfo {
 }
 
 impl Request {
-    pub fn new(messages: Vec<Message>) -> Self {
+    pub fn new(messages: Vec<Message>, model: &str) -> Self {
         Self {
-            model: "gpt-4",
+            model: model.to_string(),
             messages
         }
     }

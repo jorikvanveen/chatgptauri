@@ -4,16 +4,24 @@
     import CloseSvg from "./assets/close.svg?raw"
     import Settings from "./Settings.svelte"
     import { writable } from "svelte/store";
-    import { setContext } from "svelte";
+    import { onMount, setContext } from "svelte";
     import Page from "./page"
     import type { ChatMessage } from "./chat";
     import type { Writable } from "svelte/store";
+    import { invoke } from "@tauri-apps/api/tauri";
+    import type { Model } from "./settings";
 
     let page = writable(Page.Main);
     setContext("page", page);
 
     let messages: Writable<ChatMessage[]> = writable([]);
     setContext("messages", messages);
+
+    let apiKey = writable("");
+    let model: Writable<Model> = writable("gpt3");
+
+    setContext("apiKey", apiKey);
+    setContext("model", model);
 
     function toSettings() {
         $page = Page.Settings; 
@@ -22,6 +30,12 @@
     function toMain() {
         $page = Page.Main;
     }
+
+    onMount(async () => {
+        let settings: Settings = await invoke("get_settings");
+        $apiKey = settings.apiKey || "";
+        $model = settings.model;
+    })
 </script>
 
 <div class="container">
@@ -31,9 +45,6 @@
         </button>
         <Main />
     {:else if $page == Page.Settings}
-        <button on:click={toMain} class="nav-button">
-            {@html CloseSvg}            
-        </button>
         <Settings />
     {/if}
 </div>

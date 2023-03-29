@@ -3,9 +3,9 @@
     import { getContext, tick } from "svelte";
     import MultilineParagraph from "./MultilineParagraph.svelte";
     import { marked } from "marked";
-    import { ChatMessage } from "./chat";
+    import type { ChatMessage } from "./chat";
     import type { Writable } from "svelte/store";
-
+    import type { Model } from "./settings";
 
     interface PromptResponse {
         cost: number;
@@ -26,7 +26,7 @@
     async function submitPrompt(prompt: string) {
         let chatlog = document.querySelector(".chatlog");
 
-        $messages.push(new ChatMessage("user", prompt))
+        $messages.push({ role: "user", message: prompt, cost: null })
         messages = messages
         await tick()
 
@@ -34,12 +34,11 @@
 
         try {
             console.log("Requesting")
-            let resp = await invoke("prompt_gpt4", { prompt }) as PromptResponse;
-            console.log(resp.cost)
-            $messages.push(new ChatMessage("assistant", resp.content));
+            let resp = await invoke("prompt", { prompt }) as PromptResponse;
+            $messages.push({role: "assistant", message: resp.content, cost: resp.cost})
             console.log("Success")
         } catch (e) {
-            $messages.push(new ChatMessage("error", e.toString()));
+            $messages.push({role: "error", message: e.toString(), cost: null});
             console.error(e);
         }
 
@@ -55,7 +54,7 @@
             {#if message.role == "user"}
                 <p class="msg user"><MultilineParagraph text={message.message} /></p>
             {:else if message.role == "assistant"}
-                <p class="msg assistant">{@html marked.parse(message.message)}</p>
+                <p class="msg assistant">{@html marked.parse(message.message)}(<span class="cost">${message.cost.toPrecision(3)}</span>)</p>
             {:else}
                 <p class="msg error"><MultilineParagraph text={message.message} /></p>
             {/if}
@@ -93,6 +92,10 @@
     .error {
         color: var(--light-red);
         border-color: var(--dark-red);
+    }
+
+    .cost {
+        color: var(--teal);
     }
 
     textarea {
