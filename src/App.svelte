@@ -1,6 +1,7 @@
 <script lang="ts">
     import Main from "./Main.svelte"
     import SettingsSvg from "./assets/settings.svg?raw"
+    import CloseSvg from "./assets/close.svg?raw"
     import Settings from "./Settings.svelte"
     import { writable } from "svelte/store";
     import { setContext } from "svelte";
@@ -26,7 +27,7 @@
         <Main />
     {:else if $page == Page.Settings}
         <button on:click={toMain} class="nav-button">
-
+            {@html CloseSvg}            
         </button>
         <Settings />
     {/if}

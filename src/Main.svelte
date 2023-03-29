@@ -14,6 +14,11 @@
         }
     }
 
+    interface PromptResponse {
+        cost: number;
+        content: string;
+    }
+
     let promptInput = "";
     let messages: ChatMessage[] = [];
 
@@ -36,8 +41,9 @@
 
         try {
             console.log("Requesting")
-            let resp = await invoke("prompt", { prompt }) as string;
-            messages.push(new ChatMessage("assistant", resp));
+            let resp = await invoke("prompt_gpt4", { prompt }) as PromptResponse;
+            console.log(resp.cost)
+            messages.push(new ChatMessage("assistant", resp.content));
             console.log("Success")
         } catch (e) {
             messages.push(new ChatMessage("error", e.toString()));
@@ -89,6 +95,11 @@
         font-weight: bold;
         padding-left: 2rem;
         border-left: solid 3px var(--teal);
+    }
+
+    .error {
+        color: var(--light-red);
+        border-color: var(--dark-red);
     }
 
     textarea {
