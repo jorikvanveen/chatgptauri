@@ -31,6 +31,7 @@ impl Message {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Request {
+    pub stream: bool,
     pub model: String,
     pub messages: Vec<Message>
 }
@@ -70,6 +71,7 @@ pub struct OpenAIAPIErrorInfo {
 impl Request {
     pub fn new(messages: Vec<Message>, model: &str) -> Self {
         Self {
+            stream: true,
             model: model.to_string(),
             messages
         }
