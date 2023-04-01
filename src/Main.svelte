@@ -6,6 +6,7 @@
     import type { ChatMessage } from "./chat";
     import type { Writable } from "svelte/store";
     import type { Model } from "./settings";
+    import renderLatex from "./renderlatex";
 
     interface PromptResponse {
         cost: number;
@@ -54,7 +55,7 @@
             {#if message.role == "user"}
                 <p class="msg user"><MultilineParagraph text={message.message} /></p>
             {:else if message.role == "assistant"}
-                <p class="msg assistant">{@html marked.parse(message.message)}(<span class="cost">${message.cost.toPrecision(3)}</span>)</p>
+                <p class="msg assistant">{@html marked.parse(renderLatex(message.message))}(<span class="cost">${message.cost.toPrecision(3)}</span>)</p>
             {:else}
                 <p class="msg error"><MultilineParagraph text={message.message} /></p>
             {/if}

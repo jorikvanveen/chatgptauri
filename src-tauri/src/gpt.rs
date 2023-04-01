@@ -69,6 +69,9 @@ pub struct OpenAIAPIErrorInfo {
 
 impl Request {
     pub fn new(messages: Vec<Message>, model: &str) -> Self {
+        let mut messages = messages;
+        messages.insert(0, Message::system("You are a helpful assistant".to_string()));
+        messages.insert(0, Message::system("Anything to do with math in your responses must be formatted in TeX surrounded by either one or two dollar signs ($)".to_string()));
         Self {
             model: model.to_string(),
             messages

@@ -37,7 +37,7 @@ async fn prompt(prompt: &str, messages: tauri::State<'_, Mutex<Vec<gpt::Message>
     };
 
     let content = response.choices[0].message.get_content().to_string();
-    messages.push(gpt::Message::assistant(prompt.into()));
+    messages.push(gpt::Message::assistant((&content).into()));
 
     let usage = response.usage;
     let cost = model.calculate_cost(usage.prompt_tokens, usage.completion_tokens);
