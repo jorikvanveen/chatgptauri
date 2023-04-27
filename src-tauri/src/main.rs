@@ -1,5 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+use std::future::Future;
+
 use serde::Serialize;
 use tauri::async_runtime::Mutex;
 
@@ -14,11 +16,19 @@ struct PromptResponse {
     cost: f32
 }
 
+struct PromptDelta {
+    content: String
+}
+
 #[tauri::command]
-async fn prompt(prompt: &str, messages: tauri::State<'_, Mutex<Vec<gpt::Message>>>, settings: tauri::State<'_, Mutex<Settings>>) -> Result<PromptResponse, String> {
+async fn prompt(
+    prompt: &str,
+    messages: tauri::State<'_, Mutex<Vec<gpt::Message>>>,
+    settings: tauri::State<'_, Mutex<Settings>>
+) -> Result<(), String> {
     let mut messages = messages.lock().await;
     messages.push(gpt::Message::user(prompt.into()));
-    
+
     let settings = settings.lock().await;
     let api_key = match settings.get_key().as_ref() {
         Some(key) => key,
@@ -41,10 +51,8 @@ async fn prompt(prompt: &str, messages: tauri::State<'_, Mutex<Vec<gpt::Message>
 
     let usage = response.usage;
     let cost = model.calculate_cost(usage.prompt_tokens, usage.completion_tokens);
-    
-    Ok(PromptResponse {
-        content, cost
-    })
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -54,21 +62,8 @@ async fn clear_messages(messages: tauri::State<'_, Mutex<Vec<gpt::Message>>>) ->
     Ok(())
 }
 
-#[tauri::command]
-async fn get_settings(settings: tauri::State<'_, Mutex<Settings>>) -> Result<Settings, ()> {
-    println!("Getting settings");
-    Ok(settings.lock().await.clone())
-}
-
-#[tauri::command]
-async fn update_settings(settings_old: tauri::State<'_, Mutex<Settings>>, settings_new: Settings) -> Result<(), ()> {
-    println!("Updating settings");
-    *settings_old.lock().await = settings_new;
-    settings_old.lock().await.save().expect("Failed to write to config file");
-    Ok(())
-}
-
 fn main() {
+    use settings::{get_settings, update_settings};
     // Load settings
     let settings = Settings::load().expect("Failed to load settings");
 

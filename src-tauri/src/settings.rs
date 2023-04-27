@@ -2,8 +2,11 @@ use std::io;
 use std::fs;
 use std::path::PathBuf;
 use directories::BaseDirs;
+use tauri::async_runtime::Mutex;
 use toml;
 use serde::{Serialize, Deserialize};
+
+use crate::gpt;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
@@ -38,6 +41,7 @@ pub struct Settings {
     openai_key: Option<String>,
     model: Model
 }
+
 
 impl Settings {
     pub fn default() -> Self {
@@ -83,3 +87,16 @@ impl Settings {
     }
 }
 
+#[tauri::command]
+pub async fn get_settings(settings: tauri::State<'_, Mutex<Settings>>) -> Result<Settings, ()> {
+    println!("Getting settings");
+    Ok(settings.lock().await.clone())
+}
+
+#[tauri::command]
+pub async fn update_settings(settings_old: tauri::State<'_, Mutex<Settings>>, settings_new: Settings) -> Result<(), ()> {
+    println!("Updating settings");
+    *settings_old.lock().await = settings_new;
+    settings_old.lock().await.save().expect("Failed to write to config file");
+    Ok(())
+}
