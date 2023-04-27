@@ -1,126 +1,187 @@
+use std::{task::Poll, pin::Pin};
+use futures_core::{Stream, Future};
 use serde::{Serialize, Deserialize};
-use reqwest;
 use thiserror::Error;
-use serde_json::from_str;
+use reqwest_eventsource::{self as reqwest_es, EventSource, CannotCloneRequestError};
+use tokio_stream::StreamExt;
 
-#[derive(Serialize, Deserialize, Debug)]
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[allow(non_camel_case_types)]
 pub enum Role {
-    User,
-    System,
-    Assistant
+    user,
+    system,
+    assistant,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "role", content = "content")]
-#[allow(non_camel_case_types)]
-pub enum Message {
-    system(String),
-    user(String),
-    assistant(String)
+pub struct Message {
+    role: Role,
+    content: String
 }
 
 impl Message {
+    pub fn add_content(&mut self, content: &str) {
+        self.content.push_str(content);
+    }
+}
+
+impl Message {
+    pub fn new(role: Role, content: String) -> Self { Self { role, content } }
+
     pub fn get_content(&self) -> &str {
-        match self {
-            Message::system(s) => &s,
-            Message::user(s) => &s,
-            Message::assistant(s) => &s,
-        }
+        &self.content
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Request {
     pub model: String,
-    pub messages: Vec<Message>
-}
-
-#[derive(Debug, Error)]
-pub enum RequestError {
-    #[error("Something went wrong making the HTTP request")]
-    HTTPError(#[from] reqwest::Error),
-
-    #[error("The OpenAI API threw an error")]
-    OpenAIError(String),
-
-    #[error("Failed to parse openai response body")]
-    BodyParse
-}
-
-impl RequestError {
-    pub fn to_string(self) -> String {
-        match self {
-            Self::HTTPError(e) => e.to_string(),
-            Self::OpenAIError(s) => s,
-            Self::BodyParse => self.to_string()
-        }
-    }
-}
-
-#[derive(Deserialize, Debug)]
-pub struct OpenAIAPIError {
-    error: OpenAIAPIErrorInfo
-}
-
-#[derive(Deserialize, Debug)]
-pub struct OpenAIAPIErrorInfo {
-    message: String,
+    pub messages: Vec<Message>,
+    pub stream: bool
 }
 
 impl Request {
     pub fn new(messages: Vec<Message>, model: &str) -> Self {
         let mut messages = messages;
-        messages.insert(0, Message::system("You are a helpful assistant".to_string()));
-        messages.insert(0, Message::system("Anything to do with math in your responses must be formatted in TeX surrounded by either one or two dollar signs ($)".to_string()));
+        messages.insert(0, Message::new(Role::system, "Anything to do with math in your responses must be formatted in TeX surrounded by either one or two dollar signs ($)".to_string()));
+
         Self {
             model: model.to_string(),
-            messages
+            messages,
+            stream: true
         }
     }
 
-    pub async fn do_request(self, api_key: &str) -> Result<Response, RequestError> {
+    pub fn do_request(self, api_key: &str) -> Result<MessageDeltaStream, CannotCloneRequestError> {
         let client = reqwest::Client::new();
 
-        let response = client.post("https://api.openai.com/v1/chat/completions")
-            .header("Authorization", format!("Bearer {}", api_key))
-            .json(&self)
-            .send()
-            .await?;
+        let source = EventSource::new(
+            client.post("https://api.openai.com/v1/chat/completions")
+                .header("Authorization", format!("Bearer {}", api_key))
+                .json(&self)
+        )?;
 
-        let response_text = response.text().await?;
-
-        if let Ok(response) = from_str::<Response>(&response_text) {
-            return Ok(response)
-        };
-
-        if let Ok(error) = from_str::<OpenAIAPIError>(&response_text) {
-            return Err(RequestError::OpenAIError(error.error.message))
-        }
-
-        Err(RequestError::BodyParse)
+        return Ok(MessageDeltaStream::new(source));
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Response {
-    pub id: String,
-    pub object: String,
-    pub created: i64,
-    pub model: String,
-    pub usage: Usage,
-    pub choices: Vec<Choice>,
+#[derive(Debug, Error)]
+pub enum StreamError {
+    #[error("Error while reading response stream")]
+    StreamReadFailed(#[from] reqwest_eventsource::Error),
+
+    #[error("Invalid response from openai api")]
+    InvalidJson(#[from] serde_json::Error),
+
+    #[error("Invalid response from openai api")]
+    InvalidEvent
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Usage {
-    pub prompt_tokens: i32,
-    pub completion_tokens: i32,
-    pub total_tokens: i32,
+pub struct MessageDeltaStream {
+    event_source: EventSource,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Choice {
-    pub message: Message,
-    pub finish_reason: String,
-    pub index: i32
+impl Stream for MessageDeltaStream {
+    type Item = Result<MessageDelta, StreamError>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Option<Self::Item>> {
+        let next = self.event_source.next();
+
+        // Poll next event
+        return match Pin::new(&mut Box::pin(next)).poll(cx) {
+            Poll::Ready(x) => match x {
+                Some(x) => match x {
+                    Ok(event) => match event {
+                        reqwest_es::Event::Open => {
+                            cx.waker().wake_by_ref();
+                            Poll::Pending
+                        },
+                        reqwest_es::Event::Message(message) => {
+                            Poll::Ready(Some(MessageDeltaStream::process_event(message)))
+                        },
+                    },  
+                    Err(error) => {
+                        Poll::Ready(Some(Err(error.into())))
+                    },
+                },
+                None => {
+                    Poll::Ready(None)
+                },
+           },
+           Poll::Pending => {
+               cx.waker().wake_by_ref();
+               Poll::Pending
+           },
+        };
+    }
 }
+
+impl MessageDeltaStream {
+    pub fn new(event_source: EventSource) -> Self {
+        Self {
+            event_source,
+        }
+    }
+
+    fn process_event(event: eventsource_stream::Event) -> Result<MessageDelta, StreamError> {
+        let data = event.data;
+
+        if data == "[DONE]" {
+            return Ok(MessageDelta::Done);
+        }
+
+        dbg!(&data);
+
+        // Parse data
+        let data: openai_types::EventData = serde_json::from_str(&data)?;
+
+        dbg!(&data);
+
+        if data.choices.len() == 0 {
+            return Err(StreamError::InvalidEvent)
+        }
+
+        match &data.choices[0].delta {
+            openai_types::Delta::Role { role } => Ok(MessageDelta::Role(role.clone())),
+            openai_types::Delta::Content { content } => Ok(MessageDelta::Delta(content.into())),
+            openai_types::Delta::NoData {} => Ok(MessageDelta::NoData)
+        }
+    }
+}
+
+mod openai_types {
+    use serde::Deserialize;
+
+    #[derive(Debug, Deserialize)]
+    pub struct EventData {
+        pub object: String,
+        pub created: isize,
+        pub model: String,
+        pub choices: Vec<Choice>
+    }
+
+    #[derive(Debug, Deserialize)]
+    pub struct Choice {
+        pub finish_reason: Option<String>,
+        pub index: isize,
+        pub delta: Delta
+    }
+
+    #[derive(Debug, Deserialize)]
+    #[serde(untagged)]
+    pub enum Delta {
+        Role { role: super::Role },
+        Content { content: String },
+        NoData {}
+    }
+}
+
+#[derive(Debug)]
+pub enum MessageDelta {
+    Delta(String),
+    Role(Role),
+    NoData,
+    Done
+}
+
