@@ -1,11 +1,11 @@
 <script lang="ts">
-    import Main from "./Main.svelte"
-    import SettingsSvg from "./assets/settings.svg?raw"
-    import CloseSvg from "./assets/close.svg?raw"
-    import Settings from "./Settings.svelte"
+    import { listen, type Event } from "@tauri-apps/api/event"
+    import Main from "./Main.svelte";
+    import SettingsSvg from "./assets/settings.svg?raw";
+    import Settings from "./Settings.svelte";
     import { writable } from "svelte/store";
     import { onMount, setContext } from "svelte";
-    import Page from "./page"
+    import Page from "./page";
     import type { ChatMessage } from "./chat";
     import type { Writable } from "svelte/store";
     import { invoke } from "@tauri-apps/api/tauri";
@@ -20,22 +20,36 @@
     let apiKey = writable("");
     let model: Writable<Model> = writable("gpt3");
 
+    let isLocked = writable(false);
+
     setContext("apiKey", apiKey);
     setContext("model", model);
+    setContext("isLocked", isLocked);
 
     function toSettings() {
-        $page = Page.Settings; 
-    }
-
-    function toMain() {
-        $page = Page.Main;
+        $page = Page.Settings;
     }
 
     onMount(async () => {
         let settings: Settings = await invoke("get_settings");
         $apiKey = settings.apiKey || "";
         $model = settings.model;
-    })
+
+        const unlistenAddContent = await listen("add_message_content", (event: Event<string>) => {
+            const lastMessage = $messages[$messages.length - 1];
+            lastMessage.message += event.payload;
+            $messages = $messages;
+        })
+
+        let unlistenLock = await listen("lock", (event: Event<boolean>) => {
+            $isLocked = event.payload
+        })
+
+        return () => {
+            unlistenAddContent();
+            unlistenLock();
+        }
+    });
 </script>
 
 <div class="container">
@@ -64,7 +78,7 @@
         position: fixed;
         right: 0;
         cursor: pointer;
-        padding: .5rem;
+        padding: 0.5rem;
         fill: var(--fg);
     }
 </style>

@@ -1,10 +1,9 @@
-use std::{task::Poll, pin::Pin};
-use futures_core::{Stream, Future};
-use serde::{Serialize, Deserialize};
+use futures_core::Stream;
+use reqwest_eventsource::{self as reqwest_es, CannotCloneRequestError, EventSource};
+use serde::{Deserialize, Serialize};
+use std::pin::Pin;
 use thiserror::Error;
-use reqwest_eventsource::{self as reqwest_es, EventSource, CannotCloneRequestError};
 use tokio_stream::StreamExt;
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[allow(non_camel_case_types)]
@@ -17,7 +16,7 @@ pub enum Role {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Message {
     role: Role,
-    content: String
+    content: String,
 }
 
 impl Message {
@@ -27,7 +26,9 @@ impl Message {
 }
 
 impl Message {
-    pub fn new(role: Role, content: String) -> Self { Self { role, content } }
+    pub fn new(role: Role, content: String) -> Self {
+        Self { role, content }
+    }
 
     pub fn get_content(&self) -> &str {
         &self.content
@@ -38,31 +39,71 @@ impl Message {
 pub struct Request {
     pub model: String,
     pub messages: Vec<Message>,
-    pub stream: bool
+    pub stream: bool,
 }
 
 impl Request {
     pub fn new(messages: Vec<Message>, model: &str) -> Self {
         let mut messages = messages;
-        messages.insert(0, Message::new(Role::system, "Anything to do with math in your responses must be formatted in TeX surrounded by either one or two dollar signs ($)".to_string()));
+        messages.insert(0, Message::new(Role::system, "From now on, anything to do with math in your responses must be formatted in TeX surrounded by either one or two dollar signs ($). In case your output contains dollar signs that are not meant to signal the start or end of TeX code, please escape the dollar signs like this: `\\$`".to_string()));
 
         Self {
             model: model.to_string(),
             messages,
-            stream: true
+            stream: true,
         }
     }
 
-    pub fn do_request(self, api_key: &str) -> Result<MessageDeltaStream, CannotCloneRequestError> {
+    pub fn do_request(
+        self,
+        api_key: &str,
+    ) -> Result<
+        Pin<Box<impl Stream<Item = Result<MessageDelta, StreamError>>>>,
+        CannotCloneRequestError,
+    > {
         let client = reqwest::Client::new();
 
         let source = EventSource::new(
-            client.post("https://api.openai.com/v1/chat/completions")
+            client
+                .post("https://api.openai.com/v1/chat/completions")
                 .header("Authorization", format!("Bearer {}", api_key))
-                .json(&self)
+                .json(&self),
         )?;
 
-        return Ok(MessageDeltaStream::new(source));
+        Ok(Box::pin(source.then(Request::handle_eventsource_event)))
+    }
+
+    async fn handle_eventsource_event(
+        event: Result<reqwest_eventsource::Event, reqwest_eventsource::Error>,
+    ) -> Result<MessageDelta, StreamError> {
+        match event {
+            Ok(event) => match event {
+                reqwest_es::Event::Open => Ok(MessageDelta::NoData),
+                reqwest_es::Event::Message(event) => Self::process_event(event),
+            },
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    fn process_event(event: eventsource_stream::Event) -> Result<MessageDelta, StreamError> {
+        let data = event.data;
+
+        if data == "[DONE]" {
+            return Ok(MessageDelta::Done);
+        }
+
+        // Parse data
+        let data: openai_types::EventData = serde_json::from_str(&data)?;
+
+        if data.choices.len() == 0 {
+            return Err(StreamError::InvalidEvent);
+        }
+
+        match &data.choices[0].delta {
+            openai_types::Delta::Role { role } => Ok(MessageDelta::Role(role.clone())),
+            openai_types::Delta::Content { content } => Ok(MessageDelta::Delta(content.into())),
+            openai_types::Delta::NoData {} => Ok(MessageDelta::NoData),
+        }
     }
 }
 
@@ -75,79 +116,7 @@ pub enum StreamError {
     InvalidJson(#[from] serde_json::Error),
 
     #[error("Invalid response from openai api")]
-    InvalidEvent
-}
-
-pub struct MessageDeltaStream {
-    event_source: EventSource,
-}
-
-impl Stream for MessageDeltaStream {
-    type Item = Result<MessageDelta, StreamError>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Option<Self::Item>> {
-        let next = self.event_source.next();
-
-        // Poll next event
-        return match Pin::new(&mut Box::pin(next)).poll(cx) {
-            Poll::Ready(x) => match x {
-                Some(x) => match x {
-                    Ok(event) => match event {
-                        reqwest_es::Event::Open => {
-                            cx.waker().wake_by_ref();
-                            Poll::Pending
-                        },
-                        reqwest_es::Event::Message(message) => {
-                            Poll::Ready(Some(MessageDeltaStream::process_event(message)))
-                        },
-                    },  
-                    Err(error) => {
-                        Poll::Ready(Some(Err(error.into())))
-                    },
-                },
-                None => {
-                    Poll::Ready(None)
-                },
-           },
-           Poll::Pending => {
-               cx.waker().wake_by_ref();
-               Poll::Pending
-           },
-        };
-    }
-}
-
-impl MessageDeltaStream {
-    pub fn new(event_source: EventSource) -> Self {
-        Self {
-            event_source,
-        }
-    }
-
-    fn process_event(event: eventsource_stream::Event) -> Result<MessageDelta, StreamError> {
-        let data = event.data;
-
-        if data == "[DONE]" {
-            return Ok(MessageDelta::Done);
-        }
-
-        dbg!(&data);
-
-        // Parse data
-        let data: openai_types::EventData = serde_json::from_str(&data)?;
-
-        dbg!(&data);
-
-        if data.choices.len() == 0 {
-            return Err(StreamError::InvalidEvent)
-        }
-
-        match &data.choices[0].delta {
-            openai_types::Delta::Role { role } => Ok(MessageDelta::Role(role.clone())),
-            openai_types::Delta::Content { content } => Ok(MessageDelta::Delta(content.into())),
-            openai_types::Delta::NoData {} => Ok(MessageDelta::NoData)
-        }
-    }
+    InvalidEvent,
 }
 
 mod openai_types {
@@ -158,14 +127,14 @@ mod openai_types {
         pub object: String,
         pub created: isize,
         pub model: String,
-        pub choices: Vec<Choice>
+        pub choices: Vec<Choice>,
     }
 
     #[derive(Debug, Deserialize)]
     pub struct Choice {
         pub finish_reason: Option<String>,
         pub index: isize,
-        pub delta: Delta
+        pub delta: Delta,
     }
 
     #[derive(Debug, Deserialize)]
@@ -173,15 +142,14 @@ mod openai_types {
     pub enum Delta {
         Role { role: super::Role },
         Content { content: String },
-        NoData {}
+        NoData {},
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize)]
 pub enum MessageDelta {
     Delta(String),
     Role(Role),
     NoData,
-    Done
+    Done,
 }
-

@@ -9,21 +9,21 @@
     import Page from "./page";
     import CloseSvg from "./assets/close.svg?raw";
 
-    let apiKey: Writable<string> = getContext("apiKey")
+    let apiKey: Writable<string> = getContext("apiKey");
     let model: "gpt3" | "gpt4" | "gpt432k" = getContext("model");
 
     let messages: Writable<ChatMessage[]> = getContext("messages");
-
+    let isLocked: Writable<boolean> = getContext("isLocked");
     let page: Writable<Page> = getContext("page");
 
     async function clearMessages() {
-        $messages = []
+        $messages = [];
         await invoke("clear_messages");
-        console.log("cleared")
+        console.log("cleared");
     }
 
     async function getSettings(): Promise<Settings> {
-        return await invoke("get_settings"); 
+        return await invoke("get_settings");
     }
 
     async function updateSettings() {
@@ -46,20 +46,20 @@
 <h1>Settings</h1>
 
 <button on:click={toMain} class="nav-button">
-    {@html CloseSvg}            
+    {@html CloseSvg}
 </button>
 <div class="container">
-    <Button on:click={clearMessages} label="Clear messages" /><br/>
+    <Button disabled={$isLocked} on:click={clearMessages} label="Clear messages" /><br />
     <Input label="API Key" password bind:value={$apiKey} />
-    <br/>
+    <br />
 
     <label for="model">Model</label>
     <select bind:value={model} id="model">
-        <option value="gpt3">GPT 3</option> 
+        <option value="gpt3">GPT 3</option>
         <option value="gpt4">GPT 4</option>
         <option value="gpt432k">GPT 4 32K</option>
     </select>
-    <br/>
+    <br />
 </div>
 
 <style>
@@ -77,9 +77,7 @@
         right: 0;
         top: 0;
         cursor: pointer;
-        padding: .5rem;
+        padding: 0.5rem;
         fill: var(--fg);
     }
 </style>
-
-

@@ -1,8 +1,9 @@
 <script lang="ts">
     export let label: string;
+    export let disabled: boolean = false;
 </script>
 
-<button on:click>{label}</button>
+<button {disabled} on:click>{label}</button>
 
 <style>
     button {
@@ -19,5 +20,9 @@
 
     button:hover {
         box-shadow: 2px 2px 10px 0px #000000;
+    }
+
+    button:disabled {
+        opacity: 0.5;
     }
 </style>

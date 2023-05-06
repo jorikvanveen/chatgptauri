@@ -30,7 +30,15 @@ export default function renderLatex(inputHTML: string): string {
 
         console.log(originalHTMLChunks[i], currentMatch);
 
-        newHTML += originalHTMLChunks[i] + katex.renderToString(currentMatch.substring(trimLength, currentMatch.length-trimLength), { trust: false, output: "mathml", displayMode: isDouble });
+        let renderedChunk = currentMatch.substring(trimLength, currentMatch.length-trimLength);
+
+        try {
+            renderedChunk = katex.renderToString(currentMatch.substring(trimLength, currentMatch.length-trimLength), { trust: false, output: "mathml", displayMode: isDouble });
+        } catch(e) {
+            console.warn("Failed to render TeX", e)
+        }
+
+        newHTML += originalHTMLChunks[i] + renderedChunk;
         
         i++;
     }
