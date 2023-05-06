@@ -76,8 +76,8 @@ impl Conversation {
         {
             let is_locked = Arc::clone(&self.is_locked);
             let messages = Arc::clone(&self.messages);
-            let mut delta_stream = gpt::Request::new(self.messages.lock().await.clone(), model)
-                .do_request(api_key)?;
+            let mut delta_stream =
+                gpt::Request::new(self.messages.lock().await.clone(), model).do_request(api_key)?;
             let window = window.clone();
 
             tokio::spawn(async move {

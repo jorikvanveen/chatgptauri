@@ -1,10 +1,10 @@
-use std::io;
-use std::fs;
-use std::path::PathBuf;
 use directories::BaseDirs;
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::io;
+use std::path::PathBuf;
 use tauri::async_runtime::Mutex;
 use toml;
-use serde::{Serialize, Deserialize};
 
 use crate::gpt;
 
@@ -13,7 +13,7 @@ use crate::gpt;
 pub enum Model {
     Gpt432K,
     Gpt4,
-    Gpt3
+    Gpt3,
 }
 
 impl Model {
@@ -21,7 +21,7 @@ impl Model {
         match self {
             Self::Gpt3 => (prompt_tokens + completion_tokens) as f32 * 0.000002,
             Self::Gpt4 => prompt_tokens as f32 * 0.00003 + completion_tokens as f32 * 0.00006,
-            Self::Gpt432K => prompt_tokens as f32 * 0.00006 + completion_tokens as f32 * 0.00012
+            Self::Gpt432K => prompt_tokens as f32 * 0.00006 + completion_tokens as f32 * 0.00012,
         }
     }
 }
@@ -31,7 +31,7 @@ impl Model {
         match self {
             Self::Gpt432K => "gpt-4-32k",
             Self::Gpt4 => "gpt-4",
-            Self::Gpt3 => "gpt-3.5-turbo"
+            Self::Gpt3 => "gpt-3.5-turbo",
         }
     }
 }
@@ -39,15 +39,14 @@ impl Model {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Settings {
     openai_key: Option<String>,
-    model: Model
+    model: Model,
 }
-
 
 impl Settings {
     pub fn default() -> Self {
         Self {
             openai_key: None,
-            model: Model::Gpt3
+            model: Model::Gpt3,
         }
     }
 
@@ -69,7 +68,8 @@ impl Settings {
     pub fn load() -> Result<Self, io::Error> {
         let settings_file = Self::get_settings_file();
         let settings_file_contents = fs::read_to_string(settings_file)?;
-        let deserialized: Self = toml::from_str(&settings_file_contents).expect("Failed to deserialize settings");
+        let deserialized: Self =
+            toml::from_str(&settings_file_contents).expect("Failed to deserialize settings");
         Ok(deserialized)
     }
 
@@ -81,7 +81,8 @@ impl Settings {
         // Check if this file exists
         if let Err(_) = fs::metadata(&config_file) {
             // Create the file
-            fs::write(&config_file, "model = \"gpt3\"").expect("Failed to write to config directory");
+            fs::write(&config_file, "model = \"gpt3\"")
+                .expect("Failed to write to config directory");
         };
         config_file.to_path_buf()
     }
@@ -94,9 +95,16 @@ pub async fn get_settings(settings: tauri::State<'_, Mutex<Settings>>) -> Result
 }
 
 #[tauri::command]
-pub async fn update_settings(settings_old: tauri::State<'_, Mutex<Settings>>, settings_new: Settings) -> Result<(), ()> {
+pub async fn update_settings(
+    settings_old: tauri::State<'_, Mutex<Settings>>,
+    settings_new: Settings,
+) -> Result<(), ()> {
     println!("Updating settings");
     *settings_old.lock().await = settings_new;
-    settings_old.lock().await.save().expect("Failed to write to config file");
+    settings_old
+        .lock()
+        .await
+        .save()
+        .expect("Failed to write to config file");
     Ok(())
 }
