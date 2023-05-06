@@ -35,7 +35,7 @@ impl Conversation {
         }
     }
 
-    pub fn get_messages(&self) -> &Arc<Mutex<Vec<Message>>> {
+    pub fn _get_messages(&self) -> &Arc<Mutex<Vec<Message>>> {
         &self.messages
     }
 

@@ -6,8 +6,6 @@ use std::path::PathBuf;
 use tauri::async_runtime::Mutex;
 use toml;
 
-use crate::gpt;
-
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Model {
@@ -17,7 +15,7 @@ pub enum Model {
 }
 
 impl Model {
-    pub fn calculate_cost(&self, prompt_tokens: i32, completion_tokens: i32) -> f32 {
+    pub fn _calculate_cost(&self, prompt_tokens: i32, completion_tokens: i32) -> f32 {
         match self {
             Self::Gpt3 => (prompt_tokens + completion_tokens) as f32 * 0.000002,
             Self::Gpt4 => prompt_tokens as f32 * 0.00003 + completion_tokens as f32 * 0.00006,
@@ -43,7 +41,7 @@ pub struct Settings {
 }
 
 impl Settings {
-    pub fn default() -> Self {
+    pub fn _default() -> Self {
         Self {
             openai_key: None,
             model: Model::Gpt3,

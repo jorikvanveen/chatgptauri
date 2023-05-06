@@ -30,7 +30,7 @@ impl Message {
         Self { role, content }
     }
 
-    pub fn get_content(&self) -> &str {
+    pub fn _get_content(&self) -> &str {
         &self.content
     }
 }
