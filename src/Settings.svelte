@@ -115,6 +115,7 @@
         display: flex;
         flex-direction: column;
         overflow-y: scroll;
+        height: 100%;
         max-width: 50rem;
     }
 
