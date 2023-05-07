@@ -114,6 +114,7 @@
     .container {
         display: flex;
         flex-direction: column;
+        overflow-y: scroll;
         max-width: 50rem;
     }
 
