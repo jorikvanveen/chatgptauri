@@ -1,8 +1,5 @@
 use super::gpt;
-use crate::{
-    gpt::{MessageDelta, Request, Role},
-    settings::get_settings,
-};
+use crate::gpt::{MessageDelta, Request, Role};
 use anyhow::{Context, Result};
 use directories::BaseDirs;
 use gpt::Message;
@@ -13,11 +10,10 @@ use std::time;
 use std::{
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, AtomicI64, AtomicU32, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
         Arc,
     },
 };
-use tauri::{api::path::data_dir, command::private::SerializeKind};
 use thiserror::Error;
 use tokio::fs;
 use tokio::sync::Mutex;
@@ -68,7 +64,7 @@ impl Conversation {
                 .duration_since(time::UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),
-            Ordering::Relaxed
+            Ordering::Relaxed,
         );
     }
 
@@ -151,7 +147,7 @@ impl Conversation {
 
     pub async fn generate_name(&self, api_key: &str) -> Result<String> {
         let mut cloned_messages = self.messages.lock().await.clone();
-        cloned_messages.push(Message::new(Role::user, "Write a name for this conversation, it should not be longer than a few words. Do not say anything except the name, do not put it in quotes and do not use a period.".into()));
+        cloned_messages.push(Message::new(Role::user, "Write a name for this conversation, it should not be longer than a few words. Do not take the first system message into acccount. Do not say anything except the name, do not put it in quotes and do not use a period.".into()));
 
         let mut stream = Request::new(cloned_messages, "gpt-3.5-turbo")
             .do_request(api_key)

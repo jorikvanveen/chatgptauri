@@ -4,12 +4,12 @@ use conversation::SerializedConversation;
 use serde::Serialize;
 use tauri::async_runtime::Mutex;
 
+mod conversation;
 mod gpt;
 mod settings;
-mod conversation;
 
-use settings::Settings;
 use crate::conversation::Conversation;
+use settings::Settings;
 
 #[derive(Clone, Debug, Serialize)]
 struct PromptResponse {
@@ -103,7 +103,10 @@ async fn load_conversation(
 }
 
 #[tauri::command]
-async fn reset_conversation(conversation: tauri::State<'_, Conversation>, window: tauri::Window) -> Result<(), ()> {
+async fn reset_conversation(
+    conversation: tauri::State<'_, Conversation>,
+    window: tauri::Window,
+) -> Result<(), ()> {
     conversation.reset().await;
     let messages = conversation.get_messages().lock().await;
     window.emit("refresh_messages", &*messages).unwrap();
