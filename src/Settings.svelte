@@ -58,6 +58,7 @@
 
     async function newConversation() {
         await invoke("reset_conversation");
+        toMain();
     }
 
     onMount(async () => {
