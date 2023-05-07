@@ -30,7 +30,7 @@
     async function clearMessages() {
         $messages = [];
         await invoke("clear_messages");
-        console.log("cleared");
+        toMain();
     }
 
     async function getSettings(): Promise<Settings> {
