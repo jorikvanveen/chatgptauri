@@ -5,14 +5,8 @@
     import { marked } from "marked";
     import type { ChatMessage } from "./chat";
     import type { Writable } from "svelte/store";
-    import type { Model } from "./settings";
     import renderLatex from "./renderlatex";
-    import { listen, type Event } from "@tauri-apps/api/event";
 
-    interface PromptResponse {
-        cost: number;
-        content: string;
-    }
     let isLocked: Writable<boolean> = getContext("isLocked");
     let messages: Writable<ChatMessage[]> = getContext("messages");
     let promptInput = "";
@@ -30,38 +24,43 @@
         $messages;
         const chatLog = document.querySelector(".chatlog");
         if (chatLog) {
-            chatLog.scrollTo(0, chatLog.scrollHeight);
+            scrollDown();
         }
     }
 
-    async function submitPrompt(prompt: string) {
+    function scrollDown() {
         let chatlog = document.querySelector(".chatlog");
-
-        $messages.push({ role: "user", message: prompt, cost: null });
+        chatlog.scrollTo(0, chatlog.scrollHeight);
+    }
+ 
+    async function submitPrompt(prompt: string) {
+        $messages.push({ role: "user", content: prompt });
         messages = messages;
         await tick();
 
-        chatlog.scrollTo(0, chatlog.scrollHeight);
+        scrollDown()
 
         try {
             console.log("Requesting");
             await invoke("prompt", { prompt });
-            $messages.push({ role: "assistant", message: "", cost: -1 });
+            $messages.push({ role: "assistant", content: ""});
             console.log("Success");
         } catch (e) {
             $messages.push({
                 role: "error",
-                message: e.toString(),
-                cost: null,
+                content: e.toString(),
             });
             console.error(e);
         }
 
         messages = messages;
         await tick();
-        chatlog.scrollTo(0, chatlog.scrollHeight);
+        scrollDown();
     }
 
+    onMount(() => {
+        scrollDown();
+    })
 </script>
 
 <main class="container">
@@ -69,16 +68,16 @@
         {#each $messages as message}
             {#if message.role == "user"}
                 <p class="msg user">
-                    <MultilineParagraph text={message.message} />
+                    <MultilineParagraph text={message.content} />
                 </p>
             {:else if message.role == "assistant"}
                 <p class="msg assistant">
-                    {@html marked.parse(renderLatex(message.message))}
+                    {@html marked.parse(renderLatex(message.content))}
                     <!-- (<span class="cost">${message.cost.toPrecision(3)}</span>) -->
                 </p>
             {:else}
                 <p class="msg error">
-                    <MultilineParagraph text={message.message} />
+                    <MultilineParagraph text={message.content} />
                 </p>
             {/if}
         {/each}

@@ -37,17 +37,23 @@
 
         const unlistenAddContent = await listen("add_message_content", (event: Event<string>) => {
             const lastMessage = $messages[$messages.length - 1];
-            lastMessage.message += event.payload;
+            lastMessage.content += event.payload;
             $messages = $messages;
         })
 
-        let unlistenLock = await listen("lock", (event: Event<boolean>) => {
+        const unlistenLock = await listen("lock", (event: Event<boolean>) => {
             $isLocked = event.payload
+        })
+
+        const unlistenRefreshMessages = await listen("refresh_messages", (event: Event<ChatMessage[]>) => {
+            console.log(event.payload)
+            $messages = event.payload;
         })
 
         return () => {
             unlistenAddContent();
             unlistenLock();
+            unlistenRefreshMessages();
         }
     });
 </script>
