@@ -1816,9 +1816,9 @@ dependencies = [
 
 [[package]]
 name = "openai"
-version = "1.0.0-alpha.7"
+version = "1.0.0-alpha.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c335a086ea790e5b1c48719f3c82e40c14c317bdca9ec167b930d9d2ae7e40c"
+checksum = "4ee36bba3836458bc93e5196fb3db43bff8758975d7059d259532464a33cc4d8"
 dependencies = [
  "derive_builder",
  "reqwest",

@@ -6,7 +6,8 @@ export default function renderLatex(inputHTML: string): string {
     // $...$ means inline latex
     // $$...$$ Means centered on a new line
     
-    const regex = /\$\$?[^<>]*?\$\$?/gmd;
+    //const regex = /\$\$?[^<>]*?\$\$?/gmd;
+    const regex = /\$\$?[^]*?\$\$?/gmd;
     const regexResult = inputHTML.matchAll(regex);
     
     const originalHTMLChunks = inputHTML.split(regex);
