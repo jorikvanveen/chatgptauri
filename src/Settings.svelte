@@ -18,7 +18,7 @@
     import CloseSvg from "./assets/close.svg?raw";
 
     let apiKey: Writable<string> = getContext("apiKey");
-    let model: "gpt3" | "gpt4" | "gpt432k" = getContext("model");
+    let model: "gpt3" | "gpt4" | "gpt432k" | "gpt4turbo" = getContext("model");
 
     let messages: Writable<ChatMessage[]> = getContext("messages");
     let isLocked: Writable<boolean> = getContext("isLocked");
@@ -91,6 +91,7 @@
         <option value="gpt3">GPT 3</option>
         <option value="gpt4">GPT 4</option>
         <option value="gpt432k">GPT 4 32K</option>
+        <option value="gpt4turbo">GPT 4 Turbo</option>
     </select>
     <br />
     <h2>Conversations</h2>
