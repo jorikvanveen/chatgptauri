@@ -45,7 +45,7 @@ pub struct Request {
 impl Request {
     pub fn new(messages: Vec<Message>, model: &str) -> Self {
         let mut messages = messages;
-        messages.insert(0, Message::new(Role::system, "From now on, anything to do with math in your responses must be formatted in TeX surrounded by either one or two dollar signs ($). In case your output contains dollar signs that are not meant to signal the start or end of TeX code, please escape the dollar signs like this: `\\$`".to_string()));
+        messages.insert(0, Message::new(Role::system, "You are about to enter a conversation with a user, they may or may not ask you questions about math. If you are trying to express a formula or variable or any other math concept that can be expressed in LaTeX, please do so. You can create an inline LaTeX block with a single dollar sign, for example: $a$. If you want to create a block that is centered, please use double dollar signs: $$a$$. If your output happens to contain a dollar sign, but you do not want the dollar sign to be interpreted as the start of a LaTeX block, please escape it using a backslash like this: \\$".to_string()));
 
         Self {
             model: model.to_string(),

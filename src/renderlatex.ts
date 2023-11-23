@@ -1,4 +1,3 @@
-import { assert } from "console";
 import katex from "katex";
 
 interface Range {
@@ -36,7 +35,7 @@ function findLatexBlocks(inputHTML: string): Range[] {
 		}
 
 		if (character == "$" && !isInBigCodeBlock && !isInSmallCodeBlock && !isEscaped) {
-			let isBigLatexDelimiter = inputHTML[i+1] == "`"
+			let isBigLatexDelimiter = inputHTML[i+1] == "$"
 
 			if (isBigLatexDelimiter) {
 				if (isInBigLatexBlock) {
@@ -69,6 +68,10 @@ function findLatexBlocks(inputHTML: string): Range[] {
 		}
 
 		i++;
+	}
+
+	if (ranges[ranges.length-1]?.end == -1) {
+		ranges.pop()
 	}
 
 	return ranges;
@@ -109,9 +112,12 @@ export default function renderLatex(inputHTML: string): string {
     //const regex = /\$\$?[^<>]*?\$\$?/gmd;
     //const regex = /\$\$?[^]*?\$\$?/gmd;
     //const regexResult = inputHTML.matchAll(regex);
+	
+	console.log("Input:", inputHTML)
    	
 	const ranges = findLatexBlocks(inputHTML);
 	const latexBlocks = getChunksInRanges(inputHTML, ranges);
+	console.log("Latex blocks:", latexBlocks)
     const originalHTMLChunks = getChunksOutsideRanges(inputHTML, ranges);
 
     console.log("Original chunks", originalHTMLChunks);
