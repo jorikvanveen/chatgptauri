@@ -32,8 +32,8 @@ async fn prompt(
         }
     };
 
-    let model = settings.get_model().to_string();
-    let prompt_result = conversation.prompt(prompt, &api_key, &model, &window).await;
+    let model = settings.get_model();
+    let prompt_result = conversation.prompt(prompt, &api_key, model.clone(), &window).await;
 
     if let Err(e) = prompt_result {
         return Err(e.to_string());

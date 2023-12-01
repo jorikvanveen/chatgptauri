@@ -1,12 +1,13 @@
 use super::gpt;
 use crate::gpt::{MessageDelta, Request, Role};
+use crate::settings::Model;
 use anyhow::{Context, Result};
 use directories::BaseDirs;
 use gpt::Message;
 use rand::prelude::*;
 use reqwest_eventsource::CannotCloneRequestError;
 use serde::{Deserialize, Serialize};
-use std::time;
+use std::time::{self, Duration};
 use std::{
     path::PathBuf,
     sync::{
@@ -17,6 +18,7 @@ use std::{
 use thiserror::Error;
 use tokio::fs;
 use tokio::sync::Mutex;
+use tokio::time::timeout;
 use tokio_stream::StreamExt;
 
 #[derive(Error, Debug)]
@@ -74,6 +76,17 @@ impl Conversation {
 
     pub fn get_id(&self) -> u32 {
         return self.id.load(Ordering::Relaxed);
+    }
+
+    pub async fn get_word_count(&self) -> usize {
+        let messages = self.messages.lock().await;
+        messages.iter().flat_map(|message| message.get_content().split(" ")).count()
+    }
+
+    pub async fn get_token_count(&self) -> usize {
+        // TODO: Make this count actual tokens instead of an estimate
+        // https://openai.com/pricing
+        self.get_word_count().await * 1000 / 750
     }
 
     /// Clears all the messages in this conversation
@@ -247,7 +260,7 @@ impl Conversation {
         &self,
         prompt: &str,
         api_key: &str,
-        model: &str,
+        model: Model,
         window: &tauri::Window,
     ) -> Result<()> {
         // Check if conversation is locked
@@ -271,23 +284,28 @@ impl Conversation {
             let is_locked = Arc::clone(&self.is_locked);
             let messages = Arc::clone(&self.messages);
             let mut delta_stream =
-                gpt::Request::new(self.messages.lock().await.clone(), model).do_request(api_key)?;
+                gpt::Request::new(self.messages.lock().await.clone(), model.to_string()).do_request(api_key)?;
             let window = window.clone();
             let api_key = api_key.to_string();
-            let this = self.clone();
+            let conversation = self.clone();
+            let prompt_token_count = self.get_token_count().await;
 
             tokio::spawn(async move {
                 is_locked.store(true, Ordering::SeqCst);
                 window.emit("lock", true).unwrap();
 
-                while let Some(delta) = delta_stream.next().await {
+                let mut output_word_count = 0;
+                // Await next message with a timeout of 5 seconds.
+                while let Ok(Some(delta)) =
+                    timeout(Duration::from_secs(5), delta_stream.next()).await
+                {
                     match delta {
                         Ok(delta) => {
                             if let MessageDelta::Delta(content) = delta {
                                 // Add this delta to the latest message
                                 let mut messages = messages.lock().await;
-                                let last_message_index = messages.len() - 1;
-                                messages[last_message_index].add_content(&content);
+                                messages.last_mut().unwrap().add_content(&content);
+                                output_word_count += content.split(" ").count();
 
                                 window
                                     .emit("add_message_content", content.to_owned())
@@ -302,8 +320,12 @@ impl Conversation {
                     }
                 }
 
+                let cost = model.calculate_cost(prompt_token_count as i32, (output_word_count * 1000 / 750) as i32);
+                let mut messages = messages.lock().await;
+                messages.last_mut().unwrap().set_cost(cost);
+
+                let _ = conversation.save(&api_key).await;
                 is_locked.store(false, Ordering::SeqCst);
-                let _ = this.save(&api_key).await;
                 window.emit("lock", false).unwrap();
             });
         }

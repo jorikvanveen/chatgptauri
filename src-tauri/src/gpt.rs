@@ -17,6 +17,7 @@ pub enum Role {
 pub struct Message {
     role: Role,
     content: String,
+    cost_dollars: Option<f32>
 }
 
 impl Message {
@@ -27,10 +28,14 @@ impl Message {
 
 impl Message {
     pub fn new(role: Role, content: String) -> Self {
-        Self { role, content }
+        Self { role, content, cost_dollars: None }
     }
 
-    pub fn _get_content(&self) -> &str {
+    pub fn set_cost(&mut self, cost: f32) {
+        self.cost_dollars = Some(cost);
+    }
+
+    pub fn get_content(&self) -> &str {
         &self.content
     }
 }
