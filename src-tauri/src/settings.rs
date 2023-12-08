@@ -16,7 +16,7 @@ pub enum Model {
 }
 
 impl Model {
-    pub fn calculate_cost(&self, prompt_tokens: i32, completion_tokens: i32) -> f32 {
+    pub fn calculate_cost(&self, prompt_tokens: usize, completion_tokens: usize) -> f32 {
         match self {
             Self::Gpt3 => (prompt_tokens + completion_tokens) as f32 * 0.000002,
             Self::Gpt4 => prompt_tokens as f32 * 0.00003 + completion_tokens as f32 * 0.00006,

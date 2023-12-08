@@ -75,6 +75,9 @@
                     {@html marked.parse(renderLatex(message.content))}
                     <!-- (<span class="cost">${message.cost.toPrecision(3)}</span>) -->
                 </p>
+				{#if message.cost}
+					<span>{message.cost}</span>
+				{/if}
             {:else}
                 <p class="msg error">
                     <MultilineParagraph text={message.content} />

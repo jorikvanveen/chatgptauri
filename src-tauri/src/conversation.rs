@@ -160,7 +160,7 @@ impl Conversation {
 
     pub async fn generate_name(&self, api_key: &str) -> Result<String> {
         let mut cloned_messages = self.messages.lock().await.clone();
-        cloned_messages.push(Message::new(Role::user, "Write a name for this conversation, it should not be longer than a few words. Do not take the first system message into acccount. Do not say anything except the name, do not put it in quotes and do not use a period.".into()));
+        cloned_messages.push(Message::new(Role::user, "Write a name for this conversation, it should not be longer than a few words. Do not mention math if the user doesn't. Do not say anything except the name, do not put it in quotes and do not use a period.".into()));
 
         let mut stream = Request::new(cloned_messages, "gpt-3.5-turbo")
             .do_request(api_key)
@@ -288,13 +288,14 @@ impl Conversation {
             let window = window.clone();
             let api_key = api_key.to_string();
             let conversation = self.clone();
-            let prompt_token_count = self.get_token_count().await;
+            let input_token_count = self.get_token_count().await;
 
             tokio::spawn(async move {
                 is_locked.store(true, Ordering::SeqCst);
                 window.emit("lock", true).unwrap();
 
-                let mut output_word_count = 0;
+                let mut output = String::new();
+
                 // Await next message with a timeout of 5 seconds.
                 while let Ok(Some(delta)) =
                     timeout(Duration::from_secs(5), delta_stream.next()).await
@@ -305,7 +306,7 @@ impl Conversation {
                                 // Add this delta to the latest message
                                 let mut messages = messages.lock().await;
                                 messages.last_mut().unwrap().add_content(&content);
-                                output_word_count += content.split(" ").count();
+                                output += &content;
 
                                 window
                                     .emit("add_message_content", content.to_owned())
@@ -320,17 +321,22 @@ impl Conversation {
                     }
                 }
 
-                let cost = model.calculate_cost(prompt_token_count as i32, (output_word_count * 1000 / 750) as i32);
+                let cost = model.calculate_cost(input_token_count, Self::count_tokens(&output));
                 let mut messages = messages.lock().await;
                 messages.last_mut().unwrap().set_cost(cost);
 
                 let _ = conversation.save(&api_key).await;
                 is_locked.store(false, Ordering::SeqCst);
                 window.emit("lock", false).unwrap();
+                window.emit("cost", cost).unwrap(); // Send the cost to the client
             });
         }
 
         Ok(())
+    }
+
+    fn count_tokens(string: &str) -> usize {
+        string.split(' ').count() * 1000 / 750
     }
 }
 
