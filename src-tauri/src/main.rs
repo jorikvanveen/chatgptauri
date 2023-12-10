@@ -128,7 +128,7 @@ fn main() {
             list_conversations,
             get_current_conversation_id,
             load_conversation,
-            reset_conversation
+            reset_conversation,
         ])
         //.manage(Arc::new(Mutex::new(settings)))
         .manage(Conversation::new())

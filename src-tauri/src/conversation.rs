@@ -297,37 +297,72 @@ impl Conversation {
                 let mut output = String::new();
 
                 // Await next message with a timeout of 5 seconds.
-                while let Ok(Some(delta)) =
-                    timeout(Duration::from_secs(5), delta_stream.next()).await
-                {
-                    match delta {
-                        Ok(delta) => {
-                            if let MessageDelta::Delta(content) = delta {
-                                // Add this delta to the latest message
-                                let mut messages = messages.lock().await;
-                                messages.last_mut().unwrap().add_content(&content);
-                                output += &content;
-
-                                window
-                                    .emit("add_message_content", content.to_owned())
-                                    .unwrap();
-                            }
-                        }
-                        Err(error) => match error {
-                            gpt::StreamError::StreamReadFailed(_) => break,
-                            gpt::StreamError::InvalidJson(_) => break,
-                            gpt::StreamError::InvalidEvent => break,
+                println!("Waiting for next thing in stream");
+                loop {
+                    let content = match timeout(Duration::from_secs(5), delta_stream.next()).await {
+                        Ok(delta) => match delta {
+                            Some(delta) => match delta {
+                                Ok(delta) => match delta {
+                                    MessageDelta::Delta(delta) => delta,
+                                    MessageDelta::Role(_) => continue,
+                                    MessageDelta::NoData => continue,
+                                    MessageDelta::Done => {
+                                        println!("Got done message");
+                                        break;
+                                    },
+                                },
+                                Err(err) => match err {
+                                    gpt::StreamError::StreamReadFailed(err) => {
+                                        eprintln!("Failed to read from stream");
+                                        eprintln!("{err}");
+                                        break;
+                                    },
+                                    gpt::StreamError::InvalidJson(err) => {
+                                        eprintln!("Got invalid json from API");
+                                        eprintln!("{err}");
+                                        break;
+                                    },
+                                    gpt::StreamError::InvalidEvent => {
+                                        eprintln!("Got unknown/invalid event from API");
+                                        break;
+                                    },
+                                },
+                            },
+                            None => {
+                                eprintln!("Stream returned None, assuming it ended");
+                                break;
+                            },
                         },
-                    }
+                        Err(_) => {
+                            println!("OpenAI API took too long to respond");
+                            break;
+                        },
+                    };
+                    println!("Got thing in stream");
+
+                    println!("Locking messages");
+                    let mut messages = messages.lock().await;
+                    messages.last_mut().unwrap().add_content(&content);
+                    output += &content;
+
+                    window
+                        .emit("add_message_content", content.to_owned())
+                        .unwrap();
                 }
 
+                println!("Stream ended");
+
                 let cost = model.calculate_cost(input_token_count, Self::count_tokens(&output));
-                let mut messages = messages.lock().await;
-                messages.last_mut().unwrap().set_cost(cost);
+
+                {
+                    let mut messages = messages.lock().await;
+                    messages.last_mut().unwrap().set_cost(cost);
+                }
 
                 let _ = conversation.save(&api_key).await;
                 is_locked.store(false, Ordering::SeqCst);
                 window.emit("lock", false).unwrap();
+                println!("Got cost: {}", cost);
                 window.emit("cost", cost).unwrap(); // Send the cost to the client
             });
         }

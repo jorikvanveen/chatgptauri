@@ -1,5 +1,5 @@
 export interface ChatMessage {
     role: "user" | "assistant" | "error"
     content: string,
-	cost?: number
+	cost_dollars?: number
 }

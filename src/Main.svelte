@@ -22,6 +22,7 @@
     // Scroll down if the messages update
     $: {
         $messages;
+		console.log($messages);
         const chatLog = document.querySelector(".chatlog");
         if (chatLog) {
             scrollDown();
@@ -75,8 +76,8 @@
                     {@html marked.parse(renderLatex(message.content))}
                     <!-- (<span class="cost">${message.cost.toPrecision(3)}</span>) -->
                 </p>
-				{#if message.cost}
-					<span>{message.cost}</span>
+				{#if message.cost_dollars}
+					($<span class="cost">{message.cost_dollars.toPrecision(2)}</span>)
 				{/if}
             {:else}
                 <p class="msg error">

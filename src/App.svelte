@@ -52,7 +52,7 @@
 
 		const unlistenCost = await listen("cost", (event: Event<number>) => {
     	    const lastMessage = $messages[$messages.length - 1];
-    	    lastMessage.cost += event.payload;
+    	    lastMessage.cost_dollars = event.payload;
     	    $messages = $messages;
 		})
 
@@ -60,6 +60,7 @@
             unlistenAddContent();
             unlistenLock();
             unlistenRefreshMessages();
+			unlistenCost();
         }
     });
 </script>
