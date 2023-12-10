@@ -17,6 +17,23 @@ pub enum Role {
 pub struct Message {
     role: Role,
     content: String,
+    cost_dollars: Option<f32>
+}
+
+// This is the type that will be sent to the API
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ApiMessage {
+    role: Role,
+    content: String
+}
+
+impl Into<ApiMessage> for Message {
+    fn into(self) -> ApiMessage {
+        ApiMessage {
+            role: self.role,
+            content: self.content
+        }
+    }
 }
 
 impl Message {
@@ -27,10 +44,14 @@ impl Message {
 
 impl Message {
     pub fn new(role: Role, content: String) -> Self {
-        Self { role, content }
+        Self { role, content, cost_dollars: None }
     }
 
-    pub fn _get_content(&self) -> &str {
+    pub fn set_cost(&mut self, cost: f32) {
+        self.cost_dollars = Some(cost);
+    }
+
+    pub fn get_content(&self) -> &str {
         &self.content
     }
 }
@@ -38,7 +59,7 @@ impl Message {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Request {
     pub model: String,
-    pub messages: Vec<Message>,
+    pub messages: Vec<ApiMessage>,
     pub stream: bool,
 }
 
@@ -49,7 +70,7 @@ impl Request {
 
         Self {
             model: model.to_string(),
-            messages,
+            messages: messages.into_iter().map(|message| message.into()).collect(),
             stream: true,
         }
     }
@@ -63,6 +84,8 @@ impl Request {
     > {
         let client = reqwest::Client::new();
 
+        dbg!(&self);
+
         let source = EventSource::new(
             client
                 .post("https://api.openai.com/v1/chat/completions")
@@ -71,6 +94,24 @@ impl Request {
         )?;
 
         Ok(Box::pin(source.then(Request::handle_eventsource_event)))
+    }
+
+    pub async fn do_request_streamless(mut self, api_key: &str) -> anyhow::Result<String> {
+        self.stream = false;
+
+        let client = reqwest::Client::new();
+
+        let response = client
+            .post("https://api.openai.com/v1/chat/completions")
+            .header("Authorization", format!("Bearer {}", api_key))
+            .json(&self)
+            .send()
+            .await?
+            .text().await?;
+
+        dbg!(response);
+
+        todo!();
     }
 
     async fn handle_eventsource_event(

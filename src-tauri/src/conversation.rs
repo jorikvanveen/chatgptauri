@@ -1,12 +1,13 @@
 use super::gpt;
 use crate::gpt::{MessageDelta, Request, Role};
+use crate::settings::Model;
 use anyhow::{Context, Result};
 use directories::BaseDirs;
 use gpt::Message;
 use rand::prelude::*;
 use reqwest_eventsource::CannotCloneRequestError;
 use serde::{Deserialize, Serialize};
-use std::time;
+use std::time::{self, Duration};
 use std::{
     path::PathBuf,
     sync::{
@@ -17,6 +18,7 @@ use std::{
 use thiserror::Error;
 use tokio::fs;
 use tokio::sync::Mutex;
+use tokio::time::timeout;
 use tokio_stream::StreamExt;
 
 #[derive(Error, Debug)]
@@ -74,6 +76,17 @@ impl Conversation {
 
     pub fn get_id(&self) -> u32 {
         return self.id.load(Ordering::Relaxed);
+    }
+
+    pub async fn get_word_count(&self) -> usize {
+        let messages = self.messages.lock().await;
+        messages.iter().flat_map(|message| message.get_content().split(" ")).count()
+    }
+
+    pub async fn get_token_count(&self) -> usize {
+        // TODO: Make this count actual tokens instead of an estimate
+        // https://openai.com/pricing
+        self.get_word_count().await * 1000 / 750
     }
 
     /// Clears all the messages in this conversation
@@ -147,7 +160,7 @@ impl Conversation {
 
     pub async fn generate_name(&self, api_key: &str) -> Result<String> {
         let mut cloned_messages = self.messages.lock().await.clone();
-        cloned_messages.push(Message::new(Role::user, "Write a name for this conversation, it should not be longer than a few words. Do not take the first system message into acccount. Do not say anything except the name, do not put it in quotes and do not use a period.".into()));
+        cloned_messages.push(Message::new(Role::user, "Write a name for this conversation, it should not be longer than a few words. Do not mention math if the user doesn't. Do not say anything except the name, do not put it in quotes and do not use a period.".into()));
 
         let mut stream = Request::new(cloned_messages, "gpt-3.5-turbo")
             .do_request(api_key)
@@ -247,7 +260,7 @@ impl Conversation {
         &self,
         prompt: &str,
         api_key: &str,
-        model: &str,
+        model: Model,
         window: &tauri::Window,
     ) -> Result<()> {
         // Check if conversation is locked
@@ -271,44 +284,94 @@ impl Conversation {
             let is_locked = Arc::clone(&self.is_locked);
             let messages = Arc::clone(&self.messages);
             let mut delta_stream =
-                gpt::Request::new(self.messages.lock().await.clone(), model).do_request(api_key)?;
+                gpt::Request::new(self.messages.lock().await.clone(), model.to_string()).do_request(api_key)?;
             let window = window.clone();
             let api_key = api_key.to_string();
-            let this = self.clone();
+            let conversation = self.clone();
+            let input_token_count = self.get_token_count().await;
 
             tokio::spawn(async move {
                 is_locked.store(true, Ordering::SeqCst);
                 window.emit("lock", true).unwrap();
 
-                while let Some(delta) = delta_stream.next().await {
-                    match delta {
-                        Ok(delta) => {
-                            if let MessageDelta::Delta(content) = delta {
-                                // Add this delta to the latest message
-                                let mut messages = messages.lock().await;
-                                let last_message_index = messages.len() - 1;
-                                messages[last_message_index].add_content(&content);
+                let mut output = String::new();
 
-                                window
-                                    .emit("add_message_content", content.to_owned())
-                                    .unwrap();
-                            }
-                        }
-                        Err(error) => match error {
-                            gpt::StreamError::StreamReadFailed(_) => break,
-                            gpt::StreamError::InvalidJson(_) => break,
-                            gpt::StreamError::InvalidEvent => break,
+                // Await next message with a timeout of 5 seconds.
+                println!("Waiting for next thing in stream");
+                loop {
+                    let content = match timeout(Duration::from_secs(5), delta_stream.next()).await {
+                        Ok(delta) => match delta {
+                            Some(delta) => match delta {
+                                Ok(delta) => match delta {
+                                    MessageDelta::Delta(delta) => delta,
+                                    MessageDelta::Role(_) => continue,
+                                    MessageDelta::NoData => continue,
+                                    MessageDelta::Done => {
+                                        println!("Got done message");
+                                        break;
+                                    },
+                                },
+                                Err(err) => match err {
+                                    gpt::StreamError::StreamReadFailed(err) => {
+                                        eprintln!("Failed to read from stream");
+                                        eprintln!("{err}");
+                                        break;
+                                    },
+                                    gpt::StreamError::InvalidJson(err) => {
+                                        eprintln!("Got invalid json from API");
+                                        eprintln!("{err}");
+                                        break;
+                                    },
+                                    gpt::StreamError::InvalidEvent => {
+                                        eprintln!("Got unknown/invalid event from API");
+                                        break;
+                                    },
+                                },
+                            },
+                            None => {
+                                eprintln!("Stream returned None, assuming it ended");
+                                break;
+                            },
                         },
-                    }
+                        Err(_) => {
+                            println!("OpenAI API took too long to respond");
+                            break;
+                        },
+                    };
+                    println!("Got thing in stream");
+
+                    println!("Locking messages");
+                    let mut messages = messages.lock().await;
+                    messages.last_mut().unwrap().add_content(&content);
+                    output += &content;
+
+                    window
+                        .emit("add_message_content", content.to_owned())
+                        .unwrap();
                 }
 
+                println!("Stream ended");
+
+                let cost = model.calculate_cost(input_token_count, Self::count_tokens(&output));
+
+                {
+                    let mut messages = messages.lock().await;
+                    messages.last_mut().unwrap().set_cost(cost);
+                }
+
+                let _ = conversation.save(&api_key).await;
                 is_locked.store(false, Ordering::SeqCst);
-                let _ = this.save(&api_key).await;
                 window.emit("lock", false).unwrap();
+                println!("Got cost: {}", cost);
+                window.emit("cost", cost).unwrap(); // Send the cost to the client
             });
         }
 
         Ok(())
+    }
+
+    fn count_tokens(string: &str) -> usize {
+        string.split(' ').count() * 1000 / 750
     }
 }
 

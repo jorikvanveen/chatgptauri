@@ -32,8 +32,8 @@ async fn prompt(
         }
     };
 
-    let model = settings.get_model().to_string();
-    let prompt_result = conversation.prompt(prompt, &api_key, &model, &window).await;
+    let model = settings.get_model();
+    let prompt_result = conversation.prompt(prompt, &api_key, model.clone(), &window).await;
 
     if let Err(e) = prompt_result {
         return Err(e.to_string());
@@ -128,7 +128,7 @@ fn main() {
             list_conversations,
             get_current_conversation_id,
             load_conversation,
-            reset_conversation
+            reset_conversation,
         ])
         //.manage(Arc::new(Mutex::new(settings)))
         .manage(Conversation::new())
