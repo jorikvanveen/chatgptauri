@@ -17,21 +17,21 @@ pub enum Role {
 pub struct Message {
     role: Role,
     content: String,
-    cost_dollars: Option<f32>
+    cost_dollars: Option<f32>,
 }
 
 // This is the type that will be sent to the API
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ApiMessage {
     role: Role,
-    content: String
+    content: String,
 }
 
 impl Into<ApiMessage> for Message {
     fn into(self) -> ApiMessage {
         ApiMessage {
             role: self.role,
-            content: self.content
+            content: self.content,
         }
     }
 }
@@ -44,7 +44,11 @@ impl Message {
 
 impl Message {
     pub fn new(role: Role, content: String) -> Self {
-        Self { role, content, cost_dollars: None }
+        Self {
+            role,
+            content,
+            cost_dollars: None,
+        }
     }
 
     pub fn set_cost(&mut self, cost: f32) {
@@ -94,24 +98,6 @@ impl Request {
         )?;
 
         Ok(Box::pin(source.then(Request::handle_eventsource_event)))
-    }
-
-    pub async fn do_request_streamless(mut self, api_key: &str) -> anyhow::Result<String> {
-        self.stream = false;
-
-        let client = reqwest::Client::new();
-
-        let response = client
-            .post("https://api.openai.com/v1/chat/completions")
-            .header("Authorization", format!("Bearer {}", api_key))
-            .json(&self)
-            .send()
-            .await?
-            .text().await?;
-
-        dbg!(response);
-
-        todo!();
     }
 
     async fn handle_eventsource_event(
