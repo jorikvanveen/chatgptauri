@@ -6,6 +6,7 @@
     import type { ChatMessage } from "./chat";
     import type { Writable } from "svelte/store";
     import renderLatex from "./renderlatex";
+    import Button from "./lib/Button.svelte";
 
     let isLocked: Writable<boolean> = getContext("isLocked");
     let messages: Writable<ChatMessage[]> = getContext("messages");
@@ -59,6 +60,10 @@
         scrollDown();
     }
 
+	async function cancel() {
+		await invoke("cancel");
+	}
+
     onMount(() => {
         scrollDown();
     })
@@ -89,6 +94,7 @@
     <div class="promptarea">
         <!-- svelte-ignore a11y-autofocus -->
         <textarea autofocus disabled={$isLocked} bind:value={promptInput} on:keydown={promptKeyDown} />
+		<Button label="Cancel" on:click={cancel}></Button> 
     </div>
 </main>
 
@@ -102,12 +108,16 @@
     }
 
     .chatlog {
-        height: 80%;
+		flex-grow: 0.8;
+        /* height: 80%; */
         overflow-y: scroll;
     }
 
     .promptarea {
-        height: 20%;
+		flex-grow: 0.2;
+		display: flex;
+		gap: 1rem;
+		flex-direction: column;
     }
 
     .user {

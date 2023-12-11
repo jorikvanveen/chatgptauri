@@ -40,6 +40,25 @@ pub struct Conversation {
     date_created: Arc<AtomicU64>,
 }
 
+#[derive(Clone)]
+pub struct CancelState(Arc<AtomicBool>);
+
+impl CancelState {
+    pub fn new() -> Self {
+        Self(AtomicBool::new(false).into())
+    }
+
+    pub fn transmit_cancel(&self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+
+    /// When this returns true, it assumed that the caller handles the signal. And the internal
+    /// state will be set to true.
+    pub fn receive_cancel(&self) -> bool {
+        self.0.swap(false, Ordering::SeqCst)
+    }
+}
+
 impl Conversation {
     pub fn new() -> Self {
         Self {
@@ -262,6 +281,7 @@ impl Conversation {
         api_key: &str,
         model: Model,
         window: &tauri::Window,
+        cancel_state: CancelState
     ) -> Result<()> {
         // Check if conversation is locked
         if self.is_locked.load(Ordering::SeqCst) {
@@ -303,7 +323,12 @@ impl Conversation {
                         Ok(delta) => match delta {
                             Some(delta) => match delta {
                                 Ok(delta) => match delta {
-                                    MessageDelta::Delta(delta) => delta,
+                                    MessageDelta::Delta(delta) => {
+                                        if cancel_state.receive_cancel() {
+                                            break;
+                                        }
+                                        delta
+                                    }, // We actually got some message content
                                     MessageDelta::Role(_) => continue,
                                     MessageDelta::NoData => continue,
                                     MessageDelta::Done => {
