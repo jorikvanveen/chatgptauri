@@ -92,6 +92,7 @@
         <option value="gpt4">GPT 4</option>
         <option value="gpt432k">GPT 4 32K</option>
         <option value="gpt4turbo">GPT 4 Turbo</option>
+        <option value="gpt4o">GPT 4o</option>
     </select>
     <br />
     <h2>Conversations</h2>

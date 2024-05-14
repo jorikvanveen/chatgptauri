@@ -9,6 +9,7 @@ use toml;
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Model {
+    Gpt4o,
     Gpt4Turbo,
     Gpt432K,
     Gpt4,
@@ -22,6 +23,7 @@ impl Model {
             Self::Gpt4 => prompt_tokens as f32 * 0.00003 + completion_tokens as f32 * 0.00006,
             Self::Gpt432K => prompt_tokens as f32 * 0.00006 + completion_tokens as f32 * 0.00012,
             Self::Gpt4Turbo => prompt_tokens as f32 * 0.00001 + completion_tokens as f32 * 0.00003,
+            Self::Gpt4o => prompt_tokens as f32 * 0.000005 + completion_tokens as f32 * 0.000015
         }
     }
 }
@@ -29,10 +31,11 @@ impl Model {
 impl Model {
     pub fn to_string(&self) -> &str {
         match self {
-            Self::Gpt4Turbo => "gpt-4-1106-preview",
+            Self::Gpt4Turbo => "gpt-4-turbo-preview",
             Self::Gpt432K => "gpt-4-32k",
             Self::Gpt4 => "gpt-4",
             Self::Gpt3 => "gpt-3.5-turbo",
+            Self::Gpt4o => "gpt-4o"
         }
     }
 }
